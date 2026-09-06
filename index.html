@@ -1,233 +1,778 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Opportunity & Market Finder V4</title>
+<title>Market Finder</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-body{font-family:Segoe UI,Arial,sans-serif;background:#f5f7fb;color:#172033;margin:0}.wrap{max-width:1100px;margin:auto;padding:24px}
-.card{background:white;border:1px solid #e6eaf0;border-radius:16px;padding:20px;margin:16px 0;box-shadow:0 8px 24px rgba(18,38,63,.08)}
-input,button{padding:10px;border-radius:8px;border:1px solid #d6dce7}button{background:#315efb;color:white;font-weight:700;cursor:pointer}
-.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.hidden{display:none}.muted{color:#667085;font-size:13px}.status{font-weight:700}
-table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #e6eaf0;text-align:left}
-@media(max-width:700px){.grid{grid-template-columns:1fr}}
+  /* ============ Design tokens ============ */
+  :root{
+    color-scheme: light;
+    --paper:#f5f2ea;
+    --card:#fffdf8;
+    --card-2:#faf6ec;
+    --ink:#1c2333;
+    --muted:#6f6b62;
+    --faint:#9a9border;
+    --line:#e3dbc9;
+    --line-strong:#d8cdaf;
+    --accent:#2c3e6b;
+    --accent-ink:#ffffff;
+    --accent-2:#b9822f;
+    --good-text:#006300;
+    --bad-text:#9c2b2a;
+    --warn:#8a5a12;
+    --focus:#2c3e6b;
+    --shadow: 0 1px 2px rgba(28,35,51,.07), 0 1px 1px rgba(28,35,51,.04);
+
+    /* chart tokens — validated categorical/status/sequential defaults */
+    --chart-surface:#fcfcfb;
+    --chart-ink:#0b0b0b;
+    --chart-ink-2:#52514e;
+    --chart-muted:#898781;
+    --chart-grid:#e1e0d9;
+    --chart-baseline:#c3c2b7;
+    --chart-good:#0ca30c;
+    --chart-good-text:#006300;
+    --chart-bad:#d03b3b;
+    --chart-cat-1:#2a78d6; --chart-cat-2:#eb6834; --chart-cat-3:#1baf7a; --chart-cat-4:#eda100;
+    --chart-cat-5:#e87ba4; --chart-cat-6:#008300; --chart-cat-7:#4a3aa7; --chart-cat-8:#e34948;
+    --chart-other:#c3c2b7;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      color-scheme: dark;
+      --paper:#12151c;
+      --card:#191d27;
+      --card-2:#1e2330;
+      --ink:#eae6da;
+      --muted:#9b9686;
+      --line:#2b3040;
+      --line-strong:#394062;
+      --accent:#8ea0dd;
+      --accent-ink:#101526;
+      --accent-2:#d9a55a;
+      --good-text:#22c55e;
+      --bad-text:#f28b82;
+      --warn:#e0b25f;
+      --focus:#8ea0dd;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 1px 1px rgba(0,0,0,.3);
+
+      --chart-surface:#1a1a19;
+      --chart-ink:#ffffff;
+      --chart-ink-2:#c3c2b7;
+      --chart-muted:#898781;
+      --chart-grid:#2c2c2a;
+      --chart-baseline:#383835;
+      --chart-good:#0ca30c;
+      --chart-good-text:#0ca30c;
+      --chart-bad:#d03b3b;
+      --chart-cat-1:#3987e5; --chart-cat-2:#d95926; --chart-cat-3:#199e70; --chart-cat-4:#c98500;
+      --chart-cat-5:#d55181; --chart-cat-6:#008300; --chart-cat-7:#9085e9; --chart-cat-8:#e66767;
+      --chart-other:#383835;
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --paper:#12151c; --card:#191d27; --card-2:#1e2330; --ink:#eae6da; --muted:#9b9686;
+    --line:#2b3040; --line-strong:#394062; --accent:#8ea0dd; --accent-ink:#101526; --accent-2:#d9a55a;
+    --good-text:#22c55e; --bad-text:#f28b82; --warn:#e0b25f; --focus:#8ea0dd;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 1px 1px rgba(0,0,0,.3);
+    --chart-surface:#1a1a19; --chart-ink:#ffffff; --chart-ink-2:#c3c2b7; --chart-muted:#898781;
+    --chart-grid:#2c2c2a; --chart-baseline:#383835; --chart-good:#0ca30c; --chart-good-text:#0ca30c; --chart-bad:#d03b3b;
+    --chart-cat-1:#3987e5; --chart-cat-2:#d95926; --chart-cat-3:#199e70; --chart-cat-4:#c98500;
+    --chart-cat-5:#d55181; --chart-cat-6:#008300; --chart-cat-7:#9085e9; --chart-cat-8:#e66767;
+    --chart-other:#383835;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:28px 20px 64px}
+  h1,h2,h3{font-family:"Fraunces",Georgia,serif; text-wrap:balance; margin:0; font-weight:600}
+  .num, input[type=number], .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+  .tabular{font-variant-numeric:tabular-nums}
+
+  a{color:var(--accent)}
+  a.link-btn{color:var(--accent); text-decoration:underline; cursor:pointer; background:none; border:none; font:inherit; padding:0}
+  a.link-btn:hover{opacity:.8}
+
+  /* Masthead */
+  .masthead{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;padding-bottom:18px;margin-bottom:22px;border-bottom:2px solid var(--accent-2)}
+  .masthead h1{font-size:28px;letter-spacing:.2px}
+  .masthead .tagline{color:var(--muted);font-size:13px;margin-top:4px}
+  .masthead .right{text-align:right;font-size:12px;color:var(--muted)}
+
+  /* Section labels — ledger-style rules */
+  .section-label{
+    display:flex;align-items:center;gap:10px;margin:36px 0 12px;
+    font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-2);font-weight:600;
+  }
+  .section-label::after{content:"";flex:1;height:1px;background:var(--line-strong)}
+  .section-label:first-of-type{margin-top:0}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px;box-shadow:var(--shadow)}
+  .card + .card{margin-top:14px}
+  .muted{color:var(--muted);font-size:13px}
+  .hidden{display:none !important}
+
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600}
+  .field{display:flex;flex-direction:column}
+  input{
+    padding:10px 11px;border-radius:7px;border:1px solid var(--line-strong);background:var(--paper);color:var(--ink);
+    font-size:14px;width:100%;
+  }
+  input:focus-visible, button:focus-visible, .link-btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+  button{
+    padding:10px 16px;border-radius:7px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);
+    font-weight:600;font-size:14px;cursor:pointer;font-family:inherit;
+  }
+  button:hover{filter:brightness(1.06)}
+  button:disabled{opacity:.55;cursor:default}
+  button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line-strong)}
+  button.danger-ghost{background:transparent;color:var(--bad-text);border:1px solid var(--line-strong);padding:6px 10px;font-size:13px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  @media(max-width:640px){.grid{grid-template-columns:1fr}}
+
+  /* KPI strip */
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  @media(max-width:760px){.kpi-row{grid-template-columns:repeat(2,1fr)}}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow)}
+  .kpi .label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+  .kpi .value{font-family:"IBM Plex Mono",monospace;font-size:22px;margin-top:6px;font-variant-numeric:tabular-nums}
+  .kpi .sub{font-size:12px;margin-top:3px;font-family:"IBM Plex Mono",monospace}
+
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  thead th{
+    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+    border-bottom:1px solid var(--line-strong);padding:6px 10px 8px;font-weight:600;
+  }
+  tbody td{padding:10px 10px;border-bottom:1px solid var(--line)}
+  tbody tr:last-child td{border-bottom:none}
+  td.num, th.num{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+  .table-scroll{overflow-x:auto}
+  .empty-row td{color:var(--muted);font-style:italic;text-align:center;padding:18px}
+
+  .good{color:var(--good-text);font-weight:600}
+  .bad{color:var(--bad-text);font-weight:600}
+  .pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
+  .pill.good{background:color-mix(in oklab, var(--good-text) 16%, transparent)}
+  .pill.bad{background:color-mix(in oklab, var(--bad-text) 16%, transparent)}
+
+  .quote-symbol{font-family:"Fraunces",serif;font-size:26px;font-weight:600}
+  .quote-price{font-family:"IBM Plex Mono",monospace;font-size:32px;font-variant-numeric:tabular-nums}
+  .msg{font-size:13px;margin-top:8px;min-height:16px}
+  .msg.error{color:var(--bad-text)}
+  .msg.ok{color:var(--good-text)}
+
+  details.setup{border:1px dashed var(--line-strong);border-radius:8px;padding:12px 14px;background:var(--card-2)}
+  details.setup summary{cursor:pointer;font-weight:600;font-size:13px;color:var(--accent)}
+  pre{background:var(--card-2);border:1px solid var(--line);border-radius:8px;padding:12px;overflow-x:auto;font-size:12px;line-height:1.5}
+  code{font-family:"IBM Plex Mono",monospace}
+
+  .legend{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-bottom:8px;align-items:center}
+  .legend .swatch{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
+  .chart-empty{color:var(--muted);font-size:13px;font-style:italic;padding:24px 0;text-align:center}
+
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--muted)}
+
+  @media (prefers-reduced-motion: no-preference){
+    .card, button{transition:box-shadow .15s ease, filter .15s ease}
+  }
 </style>
-</head>
-<body>
+
 <div class="wrap">
-<div id="config" class="card">
-<h2>Supabase Connection</h2>
-<p class="muted">Enter your Supabase Project URL and Publishable Key. These are client-side values. Do not enter a secret/service-role key here.</p>
-<div class="grid">
-<input id="sbUrl" placeholder="https://YOURPROJECT.supabase.co">
-<input id="sbKey" placeholder="Supabase Publishable Key">
-</div>
-<button onclick="saveConfig()" style="margin-top:10px">Save Connection</button>
-</div>
 
-<div id="auth" class="card hidden">
-<h2>Login</h2>
-<div class="grid"><input id="email" type="email" placeholder="Email"><input id="password" type="password" placeholder="Password"></div>
-<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-<button onclick="signIn()">Sign In</button>
-<button onclick="signUp()">Create Account</button>
-<button onclick="forgotPassword()" style="background:#eef2ff;color:#315efb">Forgot Password?</button>
-</div>
-<p id="authMsg" class="muted"></p>
-<div id="resetBox" class="hidden" style="margin-top:14px;padding-top:14px;border-top:1px solid #e6eaf0">
-  <h3>Set New Password</h3>
-  <p class="muted">Enter and confirm your new password.</p>
-  <div class="grid">
-    <input id="newPassword" type="password" placeholder="New password">
-    <input id="confirmPassword" type="password" placeholder="Confirm new password">
+  <!-- ============ Connection setup ============ -->
+  <div id="config" class="card hidden">
+    <h2>Connect your Supabase project</h2>
+    <p class="muted">Enter your Supabase Project URL and <strong>publishable</strong> key. These are client-side values — never enter a secret / service-role key here.</p>
+    <div class="grid" style="margin-top:12px">
+      <div class="field"><label for="sbUrl">Project URL</label><input id="sbUrl" placeholder="https://yourproject.supabase.co"></div>
+      <div class="field"><label for="sbKey">Publishable key</label><input id="sbKey" placeholder="sb_publishable_..."></div>
+    </div>
+    <button onclick="saveConfig()" style="margin-top:14px">Save connection</button>
+    <p id="configMsg" class="msg error" role="status"></p>
   </div>
-  <button onclick="setNewPassword()" style="margin-top:10px">Save New Password</button>
-  <p id="resetMsg" class="muted"></p>
-</div>
-</div>
 
-<div id="app" class="hidden">
-<div class="card">
-<div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
-<div><h2 style="margin:0">Opportunity & Live Market Finder V4</h2><div class="muted">Supabase Auth + Database + Edge Function</div></div>
-<button onclick="signOut()">Logout</button>
-</div>
-</div>
+  <!-- ============ Auth ============ -->
+  <div id="auth" class="hidden">
+    <div class="masthead">
+      <div>
+        <h1>Market Finder</h1>
+        <div class="tagline">Live quotes, watchlists, and a paper portfolio — backed by your own Supabase project</div>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="font-size:19px">Sign in</h2>
+      <div class="grid" style="margin-top:12px">
+        <div class="field"><label for="email">Email</label><input id="email" type="email" autocomplete="email"></div>
+        <div class="field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password"></div>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button id="btnSignIn" onclick="signIn()">Sign in</button>
+        <button id="btnSignUp" class="ghost" onclick="signUp()">Create account</button>
+        <button id="btnForgot" class="ghost" onclick="forgotPassword()">Forgot password?</button>
+      </div>
+      <p id="authMsg" class="msg" role="status" aria-live="polite"></p>
 
-<div class="card">
-<h3>Live / Available Market Quote</h3>
-<div style="display:flex;gap:8px;flex-wrap:wrap"><input id="symbol" value="AAPL" placeholder="Ticker"><button onclick="getQuote()">Get Quote</button></div>
-<div id="quoteBox" style="margin-top:12px"></div>
-</div>
+      <div id="resetBox" class="hidden" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)">
+        <h3 style="font-size:16px">Set a new password</h3>
+        <p class="muted">Enter and confirm your new password.</p>
+        <div class="grid" style="margin-top:10px">
+          <div class="field"><label for="newPassword">New password</label><input id="newPassword" type="password" autocomplete="new-password"></div>
+          <div class="field"><label for="confirmPassword">Confirm new password</label><input id="confirmPassword" type="password" autocomplete="new-password"></div>
+        </div>
+        <button onclick="setNewPassword()" style="margin-top:12px">Save new password</button>
+        <p id="resetMsg" class="msg" role="status"></p>
+      </div>
+    </div>
+    <p style="margin-top:14px"><button class="link-btn" onclick="editConnection()">Use a different Supabase project</button></p>
+  </div>
 
-<div class="card">
-<h3>Saved Watchlist</h3>
-<div style="display:flex;gap:8px;flex-wrap:wrap"><input id="watchSymbol" placeholder="Ticker"><input id="watchNote" placeholder="Note"><button onclick="addWatch()">Add</button></div>
-<div id="watchlist" style="margin-top:12px"></div>
-</div>
+  <!-- ============ App ============ -->
+  <div id="app" class="hidden">
+    <div class="masthead">
+      <div>
+        <h1>Market Finder</h1>
+        <div class="tagline" id="whoami">Signed in</div>
+      </div>
+      <div class="right">
+        <div id="asOf">—</div>
+        <button class="ghost" style="margin-top:6px" onclick="signOut()">Log out</button>
+      </div>
+    </div>
 
-<div class="card">
-<h3>Paper Portfolio</h3>
-<div class="grid">
-<input id="pSymbol" placeholder="Ticker">
-<input id="pShares" type="number" step=".001" value="1" placeholder="Shares">
-</div>
-<button onclick="addPaperPosition()" style="margin-top:10px">Add at Current Online Price</button>
-<div id="portfolio" style="margin-top:12px"></div>
-</div>
-</div>
+    <!-- KPI summary -->
+    <div class="kpi-row" id="kpiRow">
+      <div class="kpi"><div class="label">Portfolio value</div><div class="value tabular" id="kpiValue">$0.00</div><div class="sub muted">at last quote</div></div>
+      <div class="kpi"><div class="label">Total P/L</div><div class="value tabular" id="kpiPnl">$0.00</div><div class="sub tabular" id="kpiPnlPct">0.00%</div></div>
+      <div class="kpi"><div class="label">Watchlist</div><div class="value tabular" id="kpiWatch">0</div><div class="sub muted">symbols tracked</div></div>
+      <div class="kpi"><div class="label">Best · worst</div><div class="value tabular" id="kpiBestWorst" style="font-size:15px">—</div><div class="sub muted">by position P/L</div></div>
+    </div>
+
+    <div class="section-label">Quote lookup</div>
+    <div class="card">
+      <div class="row">
+        <div class="field" style="max-width:160px"><label for="symbol">Ticker</label><input id="symbol" value="AAPL" class="mono" style="text-transform:uppercase"></div>
+        <button id="btnQuote" onclick="getQuote()">Get quote</button>
+      </div>
+      <div id="quoteBox" style="margin-top:16px" aria-live="polite"></div>
+      <svg id="quoteSpark" class="hidden" width="100%" height="64" style="margin-top:10px;display:block"></svg>
+    </div>
+
+    <div class="section-label">Watchlist</div>
+    <div class="card">
+      <div class="row">
+        <div class="field" style="max-width:140px"><label for="watchSymbol">Ticker</label><input id="watchSymbol" class="mono" style="text-transform:uppercase"></div>
+        <div class="field" style="flex:1;min-width:160px"><label for="watchNote">Note</label><input id="watchNote"></div>
+        <button onclick="addWatch()">Add</button>
+        <button class="ghost" onclick="loadWatchlist()">Refresh</button>
+      </div>
+      <div class="table-scroll" style="margin-top:14px">
+        <table>
+          <thead><tr><th>Symbol</th><th>Note</th><th class="num">Price</th><th class="num">Change</th><th>Updated</th><th></th></tr></thead>
+          <tbody id="watchlist"><tr class="empty-row"><td colspan="6">No symbols yet — add one above.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section-label">Paper portfolio</div>
+    <div class="card">
+      <div class="row">
+        <div class="field" style="max-width:140px"><label for="pSymbol">Ticker</label><input id="pSymbol" class="mono" style="text-transform:uppercase"></div>
+        <div class="field" style="max-width:130px"><label for="pShares">Shares</label><input id="pShares" type="number" step=".001" value="1"></div>
+        <button onclick="addPaperPosition()">Buy at current price</button>
+        <button class="ghost" onclick="loadPortfolio()">Refresh</button>
+      </div>
+      <div class="table-scroll" style="margin-top:14px">
+        <table>
+          <thead><tr><th>Symbol</th><th class="num">Shares</th><th class="num">Buy price</th><th class="num">Current</th><th class="num">P/L</th><th></th></tr></thead>
+          <tbody id="portfolio"><tr class="empty-row"><td colspan="6">No positions yet.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section-label">Allocation &amp; performance</div>
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:10px">Allocation by current value</h3>
+      <div id="donutWrap"><div class="chart-empty">Add a paper position to see allocation.</div></div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:4px">Profit / loss by position</h3>
+      <div class="legend" id="pnlLegend"></div>
+      <div id="pnlBarWrap"><div class="chart-empty">Add a paper position to see performance.</div></div>
+    </div>
+
+    <div class="section-label">Price history</div>
+    <div class="card" id="historyEnabledCard">
+      <div class="row" style="align-items:flex-end">
+        <div class="field" style="max-width:220px">
+          <label for="historySymbol">Symbol</label>
+          <select id="historySymbol" style="padding:10px 11px;border-radius:7px;border:1px solid var(--line-strong);background:var(--paper);color:var(--ink);font-size:14px;width:100%"></select>
+        </div>
+        <button class="ghost" onclick="loadPriceHistoryChart()">Load chart</button>
+      </div>
+      <div id="historyChartWrap" style="margin-top:14px"><div class="chart-empty">Pick a symbol to chart its recorded price history.</div></div>
+    </div>
+    <div class="card hidden" id="historyDisabledCard">
+      <p class="muted" style="margin:0 0 10px">Historical price charts need one more table in your Supabase project. This is optional — everything else works without it.</p>
+      <details class="setup">
+        <summary>Show setup SQL</summary>
+        <pre><code>create table if not exists price_history (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id),
+  symbol text not null,
+  price numeric not null,
+  recorded_at timestamptz not null default now()
+);
+alter table price_history enable row level security;
+create policy "Users manage their own price history"
+  on price_history for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+create index if not exists price_history_user_symbol_idx
+  on price_history (user_id, symbol, recorded_at);</code></pre>
+      </details>
+      <button class="ghost" style="margin-top:12px" onclick="checkPriceHistoryCapability(true)">I've run this — check again</button>
+    </div>
+
+    <footer>
+      <span>Market Finder · connected to your Supabase project</span>
+      <button class="link-btn" onclick="editConnection()">Change connection</button>
+    </footer>
+  </div>
 </div>
 
 <script>
-let supabaseClient=null;
+'use strict';
+let supabaseClient = null;
+let priceHistoryAvailable = null; // null = unknown, true/false once checked
+const sessionQuoteHistory = {}; // symbol -> [{t,price}] in-memory, this session only
+let lastPortfolio = []; // [{symbol,shares,buy_price,current}]
+let lastWatchSymbols = [];
 
+function escapeHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function fmtMoney(n){ const v = Number(n); if(!Number.isFinite(v)) return '—'; return (v<0?'-':'') + '$' + Math.abs(v).toFixed(2); }
+function fmtMoneySigned(n){ const v = Number(n); if(!Number.isFinite(v)) return '—'; return (v>=0?'+':'-') + '$' + Math.abs(v).toFixed(2); }
+function fmtPct(n){ const v = Number(n); return Number.isFinite(v) ? (v>=0?'+':'') + v.toFixed(2) + '%' : '—'; }
+function setBusy(btn, busy, busyLabel){
+  if(!btn) return;
+  if(busy){ btn.dataset._label = btn.textContent; btn.textContent = busyLabel || 'Working…'; btn.disabled = true; }
+  else { btn.textContent = btn.dataset._label || btn.textContent; btn.disabled = false; }
+}
+
+/* ============ Connection config ============ */
 function initClient(){
-  const url=localStorage.getItem('sbUrl');
-  const key=localStorage.getItem('sbKey');
-  if(!url||!key) return false;
-  sbUrl.value=url; sbKey.value=key;
-  supabaseClient=window.supabase.createClient(url,key);
-  config.classList.add('hidden');auth.classList.remove('hidden');
+  const url = localStorage.getItem('sbUrl');
+  const key = localStorage.getItem('sbKey');
+  if(!url || !key){ config.classList.remove('hidden'); return false; }
+  supabaseClient = window.supabase.createClient(url, key);
+  auth.classList.remove('hidden');
   restoreSession();
   return true;
 }
 function saveConfig(){
-  const url=sbUrl.value.trim(),key=sbKey.value.trim();
-  if(!url||!key){alert('Enter Supabase URL and Publishable Key');return}
-  localStorage.setItem('sbUrl',url);localStorage.setItem('sbKey',key);
+  const url = sbUrl.value.trim(), key = sbKey.value.trim();
+  configMsg.textContent = '';
+  if(!url || !key){ configMsg.textContent = 'Enter both the project URL and the publishable key.'; return; }
+  if(!/^https:\/\/.+\.supabase\.co\/?$/.test(url)){ configMsg.textContent = 'That doesn\'t look like a Supabase project URL (expected https://yourproject.supabase.co).'; return; }
+  localStorage.setItem('sbUrl', url);
+  localStorage.setItem('sbKey', key);
   location.reload();
 }
+function editConnection(){
+  if(!confirm('Disconnect this Supabase project? You can reconnect any time — nothing in your database is deleted.')) return;
+  localStorage.removeItem('sbUrl');
+  localStorage.removeItem('sbKey');
+  location.reload();
+}
+
+/* ============ Auth ============ */
 async function restoreSession(){
-  const {data,error}=await supabaseClient.auth.getSession();
-  if(error){
-    authMsg.textContent='Supabase connection error: '+error.message;
-    return;
-  }
+  const { data, error } = await supabaseClient.auth.getSession();
+  if(error){ authMsg.textContent = 'Supabase connection error: ' + error.message; authMsg.className = 'msg error'; return; }
   if(data.session) showApp();
 }
 async function signIn(){
-  const e=email.value.trim(), p=password.value;
-  if(!e || !p){authMsg.textContent='Enter both email and password.';return}
-  authMsg.textContent='Checking login...';
+  const e = email.value.trim(), p = password.value;
+  if(!e || !p){ authMsg.textContent = 'Enter both email and password.'; authMsg.className='msg error'; return; }
+  authMsg.textContent = 'Checking login…'; authMsg.className = 'msg';
+  setBusy(btnSignIn, true, 'Signing in…');
   try{
-    const {data,error}=await supabaseClient.auth.signInWithPassword({email:e,password:p});
+    const { error } = await supabaseClient.auth.signInWithPassword({ email: e, password: p });
     if(error){
-      let msg=error.message || 'Login failed.';
-      if(/invalid login credentials/i.test(msg)){
-        msg='Login failed. The email/password may be incorrect, the account may not exist, or it may use another sign-in method.';
-      } else if(/email not confirmed/i.test(msg)){
-        msg='Your email is not confirmed yet. Open the Supabase confirmation email, then sign in again.';
-      }
-      authMsg.textContent=msg;
-      return;
+      let msg = error.message || 'Login failed.';
+      if(/invalid login credentials/i.test(msg)) msg = 'Login failed. The email/password may be incorrect, the account may not exist, or it may use another sign-in method.';
+      else if(/email not confirmed/i.test(msg)) msg = 'Your email is not confirmed yet. Open the confirmation email, then sign in again.';
+      authMsg.textContent = msg; authMsg.className = 'msg error'; return;
     }
-    authMsg.textContent='Login successful.';
+    authMsg.textContent = 'Login successful.'; authMsg.className = 'msg ok';
     showApp();
   }catch(err){
-    authMsg.textContent='Could not reach Supabase: '+err.message;
-  }
+    authMsg.textContent = 'Could not reach Supabase: ' + err.message; authMsg.className = 'msg error';
+  }finally{ setBusy(btnSignIn, false); }
 }
 async function signUp(){
-  const e=email.value.trim(), p=password.value;
-  if(!e || !p){authMsg.textContent='Enter an email and choose a password first.';return}
-  if(p.length<6){authMsg.textContent='Use a password with at least 6 characters.';return}
-  authMsg.textContent='Creating account...';
-  const {data,error}=await supabaseClient.auth.signUp({email:e,password:p});
-  if(error){authMsg.textContent=error.message;return}
-  authMsg.textContent=data.session
-    ? 'Account created and signed in.'
-    : 'Account created. Check your email for a confirmation message, then return here and sign in.';
-  if(data.session) showApp();
+  const e = email.value.trim(), p = password.value;
+  if(!e || !p){ authMsg.textContent = 'Enter an email and choose a password first.'; authMsg.className='msg error'; return; }
+  if(p.length < 6){ authMsg.textContent = 'Use a password with at least 6 characters.'; authMsg.className='msg error'; return; }
+  setBusy(btnSignUp, true, 'Creating…');
+  authMsg.textContent = 'Creating account…'; authMsg.className = 'msg';
+  try{
+    const { data, error } = await supabaseClient.auth.signUp({ email: e, password: p });
+    if(error){ authMsg.textContent = error.message; authMsg.className='msg error'; return; }
+    authMsg.textContent = data.session ? 'Account created and signed in.' : 'Account created. Check your email for a confirmation message, then sign in.';
+    authMsg.className = 'msg ok';
+    if(data.session) showApp();
+  } finally { setBusy(btnSignUp, false); }
 }
 async function forgotPassword(){
-  const e=email.value.trim();
-  if(!e){authMsg.textContent='Enter your email address first, then click Forgot Password.';return}
-  authMsg.textContent='Sending password reset email...';
-  const redirectTo = window.location.href.split('#')[0].split('?')[0];
-  const {error}=await supabaseClient.auth.resetPasswordForEmail(e,{redirectTo});
-  authMsg.textContent=error
-    ? 'Password reset error: '+error.message
-    : 'If this email is registered, Supabase will send a password-reset link. Check your inbox and spam folder.';
+  const e = email.value.trim();
+  if(!e){ authMsg.textContent = 'Enter your email address first, then click Forgot password.'; authMsg.className='msg error'; return; }
+  setBusy(btnForgot, true, 'Sending…');
+  authMsg.textContent = 'Sending password reset email…'; authMsg.className = 'msg';
+  try{
+    const redirectTo = window.location.href.split('#')[0].split('?')[0];
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(e, { redirectTo });
+    authMsg.textContent = error ? ('Password reset error: ' + error.message) : 'If this email is registered, a reset link is on its way. Check your inbox and spam folder.';
+    authMsg.className = error ? 'msg error' : 'msg ok';
+  } finally { setBusy(btnForgot, false); }
 }
 async function setNewPassword(){
-  const p=newPassword.value, c=confirmPassword.value;
-  if(!p || p.length<6){resetMsg.textContent='Enter a new password with at least 6 characters.';return}
-  if(p!==c){resetMsg.textContent='The two passwords do not match.';return}
-  resetMsg.textContent='Updating password...';
-  const {error}=await supabaseClient.auth.updateUser({password:p});
-  if(error){resetMsg.textContent='Could not update password: '+error.message;return}
-  resetMsg.textContent='Password updated successfully. You can now sign in with the new password.';
+  const p = newPassword.value, c = confirmPassword.value;
+  if(!p || p.length < 6){ resetMsg.textContent = 'Enter a new password with at least 6 characters.'; resetMsg.className='msg error'; return; }
+  if(p !== c){ resetMsg.textContent = 'The two passwords do not match.'; resetMsg.className='msg error'; return; }
+  resetMsg.textContent = 'Updating password…'; resetMsg.className='msg';
+  const { error } = await supabaseClient.auth.updateUser({ password: p });
+  if(error){ resetMsg.textContent = 'Could not update password: ' + error.message; resetMsg.className='msg error'; return; }
+  resetMsg.textContent = 'Password updated. You can sign in with the new password.'; resetMsg.className='msg ok';
 }
-async function signOut(){await supabaseClient.auth.signOut();location.reload()}
-async function showApp(){auth.classList.add('hidden');app.classList.remove('hidden');await loadWatchlist();await loadPortfolio()}
+async function signOut(){ await supabaseClient.auth.signOut(); location.reload(); }
 
+async function showApp(){
+  auth.classList.add('hidden'); app.classList.remove('hidden');
+  const { data } = await supabaseClient.auth.getUser();
+  whoami.textContent = data?.user?.email ? ('Signed in as ' + data.user.email) : 'Signed in';
+  await checkPriceHistoryCapability(false);
+  await Promise.all([loadWatchlist(), loadPortfolio()]);
+  touchAsOf();
+}
+function touchAsOf(){ asOf.textContent = 'As of ' + new Date().toLocaleTimeString(); }
+
+/* ============ Quotes ============ */
 async function getQuoteFor(sym){
-  const {data,error}=await supabaseClient.functions.invoke('market-quote',{body:{symbol:sym}});
+  const { data, error } = await supabaseClient.functions.invoke('market-quote', { body: { symbol: sym } });
   if(error) throw error;
   if(data?.error) throw new Error(data.error);
   return data;
 }
-async function getQuote(){
-  quoteBox.innerHTML='Loading...';
-  try{
-    const q=await getQuoteFor(symbol.value.trim().toUpperCase());
-    quoteBox.innerHTML=`<b>${q.symbol}</b> &nbsp; $${Number(q.price).toFixed(2)}
-      <br><span class="${q.change>=0?'status':''}">${q.change>=0?'+':''}${Number(q.change).toFixed(2)} (${q.percent_change>=0?'+':''}${Number(q.percent_change).toFixed(2)}%)</span>
-      <br><span class="muted">Provider timestamp: ${q.datetime||'not supplied'} · ${q.exchange||''}</span>`;
-  }catch(e){quoteBox.textContent='Quote error: '+e.message}
+function recordSessionQuote(sym, price){
+  if(!Number.isFinite(price)) return;
+  const arr = sessionQuoteHistory[sym] || (sessionQuoteHistory[sym] = []);
+  arr.push({ t: Date.now(), price });
+  if(arr.length > 40) arr.shift();
 }
+function recordPersistedQuote(sym, price){
+  if(priceHistoryAvailable !== true || !Number.isFinite(price)) return;
+  supabaseClient.auth.getUser().then(({data})=>{
+    const user = data?.user; if(!user) return;
+    supabaseClient.from('price_history').insert({ user_id: user.id, symbol: sym, price }).then(({error})=>{
+      if(error && error.code === '42P01') priceHistoryAvailable = false;
+    });
+  });
+}
+async function getQuote(){
+  const sym = symbol.value.trim().toUpperCase();
+  if(!sym){ return; }
+  setBusy(btnQuote, true, 'Loading…');
+  quoteBox.innerHTML = '<span class="muted">Loading…</span>';
+  try{
+    const q = await getQuoteFor(sym);
+    const up = Number(q.change) >= 0;
+    quoteBox.innerHTML = `
+      <div class="quote-symbol">${escapeHtml(q.symbol)}</div>
+      <div class="quote-price tabular">${fmtMoney(q.price)}</div>
+      <div class="${up?'good':'bad'} tabular">${up?'+':''}${Number(q.change).toFixed(2)} (${fmtPct(q.percent_change)})</div>
+      <div class="muted" style="margin-top:4px">Provider timestamp: ${escapeHtml(q.datetime || 'not supplied')} · ${escapeHtml(q.exchange || '')}</div>`;
+    recordSessionQuote(sym, Number(q.price));
+    recordPersistedQuote(sym, Number(q.price));
+    drawSparkline(quoteSpark, sessionQuoteHistory[sym] || []);
+    touchAsOf();
+  }catch(e){
+    quoteBox.innerHTML = `<span class="bad">Quote error: ${escapeHtml(e.message)}</span>`;
+    quoteSpark.classList.add('hidden');
+  } finally { setBusy(btnQuote, false); }
+}
+
+/* ============ Watchlist ============ */
 async function addWatch(){
-  const user=(await supabaseClient.auth.getUser()).data.user;
-  const s=watchSymbol.value.trim().toUpperCase(); if(!s)return;
-  const {error}=await supabaseClient.from('watchlist').insert({user_id:user.id,symbol:s,note:watchNote.value.trim()});
-  if(error){alert(error.message);return}
-  watchSymbol.value='';watchNote.value='';loadWatchlist();
+  const { data: userData } = await supabaseClient.auth.getUser();
+  const s = watchSymbol.value.trim().toUpperCase(); if(!s) return;
+  const { error } = await supabaseClient.from('watchlist').insert({ user_id: userData.user.id, symbol: s, note: watchNote.value.trim() });
+  if(error){ alert(error.message); return; }
+  watchSymbol.value = ''; watchNote.value = '';
+  await loadWatchlist();
 }
 async function loadWatchlist(){
-  const {data,error}=await supabaseClient.from('watchlist').select('*').order('created_at',{ascending:false});
-  if(error){watchlist.textContent=error.message;return}
-  const rows=[];
-  for(const x of data){
-    let q=null; try{q=await getQuoteFor(x.symbol)}catch{}
-    rows.push(`<tr><td><b>${x.symbol}</b></td><td>${x.note||''}</td><td>${q?'$'+Number(q.price).toFixed(2):'—'}</td><td>${q?.datetime||''}</td><td><button onclick="deleteWatch('${x.id}')">Remove</button></td></tr>`);
-  }
-  watchlist.innerHTML=`<table><thead><tr><th>Symbol</th><th>Note</th><th>Online Price</th><th>Timestamp</th><th></th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
-}
-async function deleteWatch(id){await supabaseClient.from('watchlist').delete().eq('id',id);loadWatchlist()}
+  watchlist.innerHTML = '<tr class="empty-row"><td colspan="6">Loading…</td></tr>';
+  const { data, error } = await supabaseClient.from('watchlist').select('*').order('created_at', { ascending: false });
+  if(error){ watchlist.innerHTML = `<tr class="empty-row"><td colspan="6">${escapeHtml(error.message)}</td></tr>`; return; }
+  if(!data.length){ watchlist.innerHTML = '<tr class="empty-row"><td colspan="6">No symbols yet — add one above.</td></tr>'; return; }
 
+  const quotes = await Promise.all(data.map(x => getQuoteFor(x.symbol).catch(() => null)));
+  lastWatchSymbols = data.map(x => x.symbol);
+  const rows = data.map((x, i) => {
+    const q = quotes[i];
+    if(q){ recordSessionQuote(x.symbol, Number(q.price)); recordPersistedQuote(x.symbol, Number(q.price)); }
+    const up = q ? Number(q.change) >= 0 : true;
+    return `<tr>
+      <td><b>${escapeHtml(x.symbol)}</b></td>
+      <td>${escapeHtml(x.note || '')}</td>
+      <td class="num">${q ? fmtMoney(q.price) : '—'}</td>
+      <td class="num ${q?(up?'good':'bad'):''}">${q ? (up?'+':'')+Number(q.change).toFixed(2)+' ('+fmtPct(q.percent_change)+')' : '—'}</td>
+      <td class="muted">${escapeHtml(q?.datetime || '')}</td>
+      <td><button class="danger-ghost" onclick="deleteWatch('${x.id}')">Remove</button></td>
+    </tr>`;
+  });
+  watchlist.innerHTML = rows.join('');
+  kpiWatch.textContent = String(data.length);
+  refreshHistorySymbolOptions();
+  touchAsOf();
+}
+async function deleteWatch(id){ await supabaseClient.from('watchlist').delete().eq('id', id); await loadWatchlist(); }
+
+/* ============ Paper portfolio ============ */
 async function addPaperPosition(){
+  const btn = event?.target;
   try{
-    const s=pSymbol.value.trim().toUpperCase(),sh=Number(pShares.value); if(!s||sh<=0)return;
-    const q=await getQuoteFor(s);
-    const user=(await supabaseClient.auth.getUser()).data.user;
-    const {error}=await supabaseClient.from('paper_portfolio').insert({user_id:user.id,symbol:s,shares:sh,buy_price:q.price});
+    const s = pSymbol.value.trim().toUpperCase(), sh = Number(pShares.value);
+    if(!s || !(sh > 0)) return;
+    if(btn) setBusy(btn, true, 'Buying…');
+    const q = await getQuoteFor(s);
+    const { data: userData } = await supabaseClient.auth.getUser();
+    const { error } = await supabaseClient.from('paper_portfolio').insert({ user_id: userData.user.id, symbol: s, shares: sh, buy_price: q.price });
     if(error) throw error;
-    pSymbol.value='';loadPortfolio();
-  }catch(e){alert(e.message)}
+    pSymbol.value = '';
+    await loadPortfolio();
+  }catch(e){ alert(e.message); } finally { if(btn) setBusy(btn, false); }
 }
 async function loadPortfolio(){
-  const {data,error}=await supabaseClient.from('paper_portfolio').select('*').order('created_at',{ascending:false});
-  if(error){portfolio.textContent=error.message;return}
-  const rows=[];
-  for(const x of data){
-    let q=null;try{q=await getQuoteFor(x.symbol)}catch{}
-    const cur=q?Number(q.price):Number(x.buy_price);
-    const pnl=(cur-Number(x.buy_price))*Number(x.shares);
-    rows.push(`<tr><td><b>${x.symbol}</b></td><td>${x.shares}</td><td>$${Number(x.buy_price).toFixed(2)}</td><td>$${cur.toFixed(2)}</td><td>${pnl>=0?'+':''}$${pnl.toFixed(2)}</td><td><button onclick="deletePosition('${x.id}')">Remove</button></td></tr>`);
+  portfolio.innerHTML = '<tr class="empty-row"><td colspan="6">Loading…</td></tr>';
+  const { data, error } = await supabaseClient.from('paper_portfolio').select('*').order('created_at', { ascending: false });
+  if(error){ portfolio.innerHTML = `<tr class="empty-row"><td colspan="6">${escapeHtml(error.message)}</td></tr>`; renderAnalytics([]); return; }
+  if(!data.length){
+    portfolio.innerHTML = '<tr class="empty-row"><td colspan="6">No positions yet.</td></tr>';
+    lastPortfolio = []; renderAnalytics([]); renderKpis([]); refreshHistorySymbolOptions(); return;
   }
-  portfolio.innerHTML=`<table><thead><tr><th>Symbol</th><th>Shares</th><th>Buy Price</th><th>Current</th><th>P/L</th><th></th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+  const quotes = await Promise.all(data.map(x => getQuoteFor(x.symbol).catch(() => null)));
+  const positions = data.map((x, i) => {
+    const q = quotes[i];
+    if(q) { recordSessionQuote(x.symbol, Number(q.price)); recordPersistedQuote(x.symbol, Number(q.price)); }
+    const cur = q ? Number(q.price) : Number(x.buy_price);
+    const pnl = (cur - Number(x.buy_price)) * Number(x.shares);
+    return { id: x.id, symbol: x.symbol, shares: Number(x.shares), buy_price: Number(x.buy_price), current: cur, pnl };
+  });
+  lastPortfolio = positions;
+  const rows = positions.map(p => `<tr>
+      <td><b>${escapeHtml(p.symbol)}</b></td>
+      <td class="num">${p.shares}</td>
+      <td class="num">${fmtMoney(p.buy_price)}</td>
+      <td class="num">${fmtMoney(p.current)}</td>
+      <td class="num ${p.pnl>=0?'good':'bad'}">${fmtMoneySigned(p.pnl)}</td>
+      <td><button class="danger-ghost" onclick="deletePosition('${p.id}')">Remove</button></td>
+    </tr>`);
+  portfolio.innerHTML = rows.join('');
+  renderKpis(positions);
+  renderAnalytics(positions);
+  refreshHistorySymbolOptions();
+  touchAsOf();
 }
-async function deletePosition(id){await supabaseClient.from('paper_portfolio').delete().eq('id',id);loadPortfolio()}
+async function deletePosition(id){ await supabaseClient.from('paper_portfolio').delete().eq('id', id); await loadPortfolio(); }
 
+function renderKpis(positions){
+  const value = positions.reduce((s,p) => s + p.current * p.shares, 0);
+  const cost = positions.reduce((s,p) => s + p.buy_price * p.shares, 0);
+  const pnl = value - cost;
+  const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0;
+  kpiValue.textContent = fmtMoney(value);
+  kpiPnl.textContent = fmtMoneySigned(pnl);
+  kpiPnl.className = 'value tabular ' + (pnl>=0?'good':'bad');
+  kpiPnlPct.textContent = fmtPct(pnlPct);
+  kpiPnlPct.className = 'sub tabular ' + (pnl>=0?'good':'bad');
+  if(positions.length){
+    const best = positions.reduce((a,b)=> b.pnl > a.pnl ? b : a);
+    const worst = positions.reduce((a,b)=> b.pnl < a.pnl ? b : a);
+    kpiBestWorst.innerHTML = `<span class="good">${escapeHtml(best.symbol)}</span> · <span class="bad">${escapeHtml(worst.symbol)}</span>`;
+  } else {
+    kpiBestWorst.textContent = '—';
+  }
+}
+
+/* ============ Charts (inline SVG, theme-aware via CSS custom properties) ============ */
+function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+const CAT = () => [1,2,3,4,5,6,7,8].map(i => cssVar('--chart-cat-'+i));
+
+function renderAnalytics(positions){
+  renderDonut(positions);
+  renderPnlBars(positions);
+}
+
+function renderDonut(positions){
+  if(!positions.length){ donutWrap.innerHTML = '<div class="chart-empty">Add a paper position to see allocation.</div>'; return; }
+  const values = positions.map(p => ({ symbol: p.symbol, value: Math.max(p.current * p.shares, 0) })).filter(d => d.value > 0);
+  values.sort((a,b) => b.value - a.value);
+  const cap = 7;
+  let slices = values.slice(0, cap);
+  const rest = values.slice(cap);
+  if(rest.length){ slices.push({ symbol: 'Other', value: rest.reduce((s,d)=>s+d.value,0), other:true }); }
+  const total = slices.reduce((s,d)=>s+d.value,0) || 1;
+  const cat = CAT(), other = cssVar('--chart-other');
+  const cx=90, cy=90, r=68, rInner=40;
+  let angle = -Math.PI/2, paths = [];
+  slices.forEach((d,i)=>{
+    const frac = d.value/total;
+    const a0 = angle, a1 = angle + frac*Math.PI*2;
+    angle = a1;
+    const color = d.other ? other : cat[i % cat.length];
+    const x0=cx+r*Math.cos(a0), y0=cy+r*Math.sin(a0), x1=cx+r*Math.cos(a1), y1=cy+r*Math.sin(a1);
+    const xi0=cx+rInner*Math.cos(a1), yi0=cy+rInner*Math.sin(a1), xi1=cx+rInner*Math.cos(a0), yi1=cy+rInner*Math.sin(a0);
+    const large = (a1-a0) > Math.PI ? 1 : 0;
+    const dPath = `M${x0},${y0} A${r},${r} 0 ${large} 1 ${x1},${y1} L${xi0},${yi0} A${rInner},${rInner} 0 ${large} 0 ${xi1},${yi1} Z`;
+    paths.push(`<path d="${dPath}" fill="${color}" stroke="${cssVar('--chart-surface')}" stroke-width="2"><title>${escapeHtml(d.symbol)}: ${fmtMoney(d.value)} (${(frac*100).toFixed(1)}%)</title></path>`);
+  });
+  const legend = slices.map((d,i)=>{
+    const color = d.other ? other : cat[i % cat.length];
+    const pct = ((d.value/total)*100).toFixed(1);
+    return `<div style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--chart-ink-2)">
+      <span style="width:9px;height:9px;border-radius:2px;background:${color};display:inline-block;flex:none"></span>
+      <span style="font-weight:600;color:var(--chart-ink)">${escapeHtml(d.symbol)}</span>
+      <span class="tabular" style="font-family:'IBM Plex Mono',monospace">${pct}%</span>
+    </div>`;
+  }).join('');
+  donutWrap.innerHTML = `
+    <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+      <svg width="180" height="180" viewBox="0 0 180 180" role="img" aria-label="Allocation by current value">${paths.join('')}
+        <text x="90" y="86" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--chart-ink-2)">Total</text>
+        <text x="90" y="102" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="14" font-weight="600" fill="var(--chart-ink)">${fmtMoney(total)}</text>
+      </svg>
+      <div style="display:flex;flex-direction:column;gap:6px;min-width:160px">${legend}</div>
+    </div>`;
+}
+
+function renderPnlBars(positions){
+  pnlLegend.innerHTML = `<span><span class="swatch" style="background:${cssVar('--chart-good')}"></span>Gain</span><span><span class="swatch" style="background:${cssVar('--chart-bad')}"></span>Loss</span>`;
+  if(!positions.length){ pnlBarWrap.innerHTML = '<div class="chart-empty">Add a paper position to see performance.</div>'; return; }
+  const sorted = [...positions].sort((a,b) => b.pnl - a.pnl);
+  const maxAbs = Math.max(...sorted.map(p => Math.abs(p.pnl)), 1);
+  const w = 560, rowH = 28, padL = 60, padR = 70, midX = padL + (w - padL - padR) / 2;
+  const plotW = w - padL - padR;
+  const h = sorted.length * rowH + 12;
+  let bars = sorted.map((p,i) => {
+    const y = i*rowH + 6;
+    const frac = p.pnl / maxAbs; // -1..1
+    const bw = Math.abs(frac) * (plotW/2);
+    const x = frac >= 0 ? midX : midX - bw;
+    const color = p.pnl >= 0 ? cssVar('--chart-good') : cssVar('--chart-bad');
+    const label = fmtMoneySigned(p.pnl);
+    const labelX = frac >= 0 ? midX + bw + 6 : midX - bw - 6;
+    const anchor = frac >= 0 ? 'start' : 'end';
+    return `<g>
+      <text x="${padL-8}" y="${y+14}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--chart-ink)">${escapeHtml(p.symbol)}</text>
+      <rect x="${x}" y="${y}" width="${Math.max(bw,1)}" height="18" rx="3" fill="${color}"><title>${escapeHtml(p.symbol)}: ${label}</title></rect>
+      <text x="${labelX}" y="${y+14}" text-anchor="${anchor}" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="var(--chart-ink-2)">${label}</text>
+    </g>`;
+  }).join('');
+  pnlBarWrap.innerHTML = `<svg width="100%" viewBox="0 0 ${w} ${h}" role="img" aria-label="Profit and loss by position">
+    <line x1="${midX}" y1="0" x2="${midX}" y2="${h}" stroke="${cssVar('--chart-baseline')}" stroke-width="1"/>
+    ${bars}
+  </svg>`;
+}
+
+function drawSparkline(svg, points){
+  if(!points || points.length < 2){ svg.classList.add('hidden'); svg.innerHTML=''; return; }
+  svg.classList.remove('hidden');
+  const w = 560, h = 64, pad = 6;
+  const prices = points.map(p => p.price);
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const span = (max - min) || 1;
+  const stepX = (w - pad*2) / (points.length - 1);
+  const coords = points.map((p,i) => [pad + i*stepX, h - pad - ((p.price - min)/span) * (h - pad*2)]);
+  const line = coords.map((c,i) => (i===0?'M':'L') + c[0].toFixed(1) + ',' + c[1].toFixed(1)).join(' ');
+  const up = prices[prices.length-1] >= prices[0];
+  const color = up ? cssVar('--chart-good') : cssVar('--chart-bad');
+  const last = coords[coords.length-1];
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.innerHTML = `<path d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="3.5" fill="${color}"><title>${fmtMoney(prices[prices.length-1])}</title></circle>`;
+}
+
+/* ============ Optional price-history table ============ */
+async function checkPriceHistoryCapability(showAlert){
+  const { error } = await supabaseClient.from('price_history').select('id').limit(1);
+  priceHistoryAvailable = !(error && error.code === '42P01');
+  historyEnabledCard.classList.toggle('hidden', !priceHistoryAvailable);
+  historyDisabledCard.classList.toggle('hidden', priceHistoryAvailable);
+  if(showAlert && priceHistoryAvailable) refreshHistorySymbolOptions();
+}
+function refreshHistorySymbolOptions(){
+  if(priceHistoryAvailable !== true) return;
+  const symbols = Array.from(new Set([...(lastWatchSymbols||[]), ...(lastPortfolio||[]).map(p=>p.symbol)])).sort();
+  historySymbol.innerHTML = symbols.length
+    ? symbols.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('')
+    : '<option value="">No tracked symbols yet</option>';
+}
+async function loadPriceHistoryChart(){
+  const sym = historySymbol.value;
+  if(!sym){ historyChartWrap.innerHTML = '<div class="chart-empty">Add a watchlist symbol or position first.</div>'; return; }
+  historyChartWrap.innerHTML = '<div class="chart-empty">Loading…</div>';
+  const { data, error } = await supabaseClient.from('price_history').select('price,recorded_at').eq('symbol', sym).order('recorded_at', { ascending: true }).limit(200);
+  if(error){ historyChartWrap.innerHTML = `<div class="chart-empty">${escapeHtml(error.message)}</div>`; return; }
+  if(!data.length){ historyChartWrap.innerHTML = '<div class="chart-empty">No recorded prices for this symbol yet — keep checking quotes and a history will build up.</div>'; return; }
+  drawHistoryLine(data.map(d => ({ t: new Date(d.recorded_at).getTime(), price: Number(d.price) })));
+}
+function drawHistoryLine(points){
+  const w = 640, h = 200, padL = 56, padR = 16, padT = 16, padB = 28;
+  const prices = points.map(p => p.price);
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const span = (max - min) || (min * 0.01) || 1;
+  const t0 = points[0].t, t1 = points[points.length-1].t || t0+1;
+  const tSpan = (t1 - t0) || 1;
+  const x = t => padL + ((t - t0)/tSpan) * (w - padL - padR);
+  const y = p => padT + (h - padT - padB) - ((p - min)/span) * (h - padT - padB);
+  const line = points.map((p,i) => (i===0?'M':'L') + x(p.t).toFixed(1) + ',' + y(p.price).toFixed(1)).join(' ');
+  const area = line + ` L${x(points[points.length-1].t).toFixed(1)},${(h-padB).toFixed(1)} L${x(points[0].t).toFixed(1)},${(h-padB).toFixed(1)} Z`;
+  const color = cssVar('--chart-cat-1');
+  const gridY = [0,0.5,1].map(f => {
+    const val = min + f*span;
+    const yy = y(val);
+    return `<line x1="${padL}" y1="${yy}" x2="${w-padR}" y2="${yy}" stroke="var(--chart-grid)" stroke-width="1"/>
+      <text x="${padL-8}" y="${yy+4}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--chart-muted)">${fmtMoney(val)}</text>`;
+  }).join('');
+  const dots = points.length <= 60 ? points.map(p => `<circle cx="${x(p.t).toFixed(1)}" cy="${y(p.price).toFixed(1)}" r="2.5" fill="${color}"><title>${fmtMoney(p.price)} · ${new Date(p.t).toLocaleString()}</title></circle>`).join('') : '';
+  historyChartWrap.innerHTML = `<svg width="100%" viewBox="0 0 ${w} ${h}" role="img" aria-label="Price history">
+      ${gridY}
+      <path d="${area}" fill="${color}" opacity="0.12" stroke="none"/>
+      <path d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${dots}
+      <text x="${padL}" y="${h-8}" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--chart-muted)">${new Date(t0).toLocaleDateString()}</text>
+      <text x="${w-padR}" y="${h-8}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--chart-muted)">${new Date(t1).toLocaleDateString()}</text>
+    </svg>`;
+}
+
+/* ============ Boot ============ */
 if(initClient()){
-  supabaseClient.auth.onAuthStateChange((event, session)=>{
-    if(event==='PASSWORD_RECOVERY'){
+  supabaseClient.auth.onAuthStateChange((event) => {
+    if(event === 'PASSWORD_RECOVERY'){
       auth.classList.remove('hidden');
       app.classList.add('hidden');
       resetBox.classList.remove('hidden');
-      authMsg.textContent='Password recovery link verified. Set your new password below.';
+      authMsg.textContent = 'Password recovery link verified. Set your new password below.';
+      authMsg.className = 'msg ok';
     }
   });
 }
 </script>
-</body></html>
