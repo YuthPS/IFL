@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Opportunity & Market Finder V4</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+body{font-family:Segoe UI,Arial,sans-serif;background:#f5f7fb;color:#172033;margin:0}.wrap{max-width:1100px;margin:auto;padding:24px}
+.card{background:white;border:1px solid #e6eaf0;border-radius:16px;padding:20px;margin:16px 0;box-shadow:0 8px 24px rgba(18,38,63,.08)}
+input,button{padding:10px;border-radius:8px;border:1px solid #d6dce7}button{background:#315efb;color:white;font-weight:700;cursor:pointer}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.hidden{display:none}.muted{color:#667085;font-size:13px}.status{font-weight:700}
+table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #e6eaf0;text-align:left}
+@media(max-width:700px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div id="config" class="card">
+<h2>Supabase Connection</h2>
+<p class="muted">Enter your Supabase Project URL and Publishable Key. These are client-side values. Do not enter a secret/service-role key here.</p>
+<div class="grid">
+<input id="sbUrl" placeholder="https://YOURPROJECT.supabase.co">
+<input id="sbKey" placeholder="Supabase Publishable Key">
+</div>
+<button onclick="saveConfig()" style="margin-top:10px">Save Connection</button>
+</div>
+
+<div id="auth" class="card hidden">
+<h2>Login</h2>
+<div class="grid"><input id="email" type="email" placeholder="Email"><input id="password" type="password" placeholder="Password"></div>
+<div style="margin-top:10px"><button onclick="signIn()">Sign In</button> <button onclick="signUp()">Create Account</button></div>
+<p id="authMsg" class="muted"></p>
+</div>
+
+<div id="app" class="hidden">
+<div class="card">
+<div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
+<div><h2 style="margin:0">Opportunity & Live Market Finder V4</h2><div class="muted">Supabase Auth + Database + Edge Function</div></div>
+<button onclick="signOut()">Logout</button>
+</div>
+</div>
+
+<div class="card">
+<h3>Live / Available Market Quote</h3>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><input id="symbol" value="AAPL" placeholder="Ticker"><button onclick="getQuote()">Get Quote</button></div>
+<div id="quoteBox" style="margin-top:12px"></div>
+</div>
+
+<div class="card">
+<h3>Saved Watchlist</h3>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><input id="watchSymbol" placeholder="Ticker"><input id="watchNote" placeholder="Note"><button onclick="addWatch()">Add</button></div>
+<div id="watchlist" style="margin-top:12px"></div>
+</div>
+
+<div class="card">
+<h3>Paper Portfolio</h3>
+<div class="grid">
+<input id="pSymbol" placeholder="Ticker">
+<input id="pShares" type="number" step=".001" value="1" placeholder="Shares">
+</div>
+<button onclick="addPaperPosition()" style="margin-top:10px">Add at Current Online Price</button>
+<div id="portfolio" style="margin-top:12px"></div>
+</div>
+</div>
+</div>
+
+<script>
+let supabaseClient=null;
+
+function initClient(){
+  const url=localStorage.getItem('sbUrl');
+  const key=localStorage.getItem('sbKey');
+  if(!url||!key) return false;
+  sbUrl.value=url; sbKey.value=key;
+  supabaseClient=window.supabase.createClient(url,key);
+  config.classList.add('hidden');auth.classList.remove('hidden');
+  restoreSession();
+  return true;
+}
+function saveConfig(){
+  const url=sbUrl.value.trim(),key=sbKey.value.trim();
+  if(!url||!key){alert('Enter Supabase URL and Publishable Key');return}
+  localStorage.setItem('sbUrl',url);localStorage.setItem('sbKey',key);
+  location.reload();
+}
+async function restoreSession(){
+  const {data}=await supabaseClient.auth.getSession();
+  if(data.session) showApp(); 
+}
+async function signIn(){
+  authMsg.textContent='Signing in...';
+  const {error}=await supabaseClient.auth.signInWithPassword({email:email.value.trim(),password:password.value});
+  if(error){authMsg.textContent=error.message;return}
+  showApp();
+}
+async function signUp(){
+  authMsg.textContent='Creating account...';
+  const {error}=await supabaseClient.auth.signUp({email:email.value.trim(),password:password.value});
+  authMsg.textContent=error?error.message:'Account created. Check email if email confirmation is enabled.';
+}
+async function signOut(){await supabaseClient.auth.signOut();location.reload()}
+async function showApp(){auth.classList.add('hidden');app.classList.remove('hidden');await loadWatchlist();await loadPortfolio()}
+
+async function getQuoteFor(sym){
+  const {data,error}=await supabaseClient.functions.invoke('market-quote',{body:{symbol:sym}});
+  if(error) throw error;
+  if(data?.error) throw new Error(data.error);
+  return data;
+}
+async function getQuote(){
+  quoteBox.innerHTML='Loading...';
+  try{
+    const q=await getQuoteFor(symbol.value.trim().toUpperCase());
+    quoteBox.innerHTML=`<b>${q.symbol}</b> &nbsp; $${Number(q.price).toFixed(2)}
+      <br><span class="${q.change>=0?'status':''}">${q.change>=0?'+':''}${Number(q.change).toFixed(2)} (${q.percent_change>=0?'+':''}${Number(q.percent_change).toFixed(2)}%)</span>
+      <br><span class="muted">Provider timestamp: ${q.datetime||'not supplied'} · ${q.exchange||''}</span>`;
+  }catch(e){quoteBox.textContent='Quote error: '+e.message}
+}
+async function addWatch(){
+  const user=(await supabaseClient.auth.getUser()).data.user;
+  const s=watchSymbol.value.trim().toUpperCase(); if(!s)return;
+  const {error}=await supabaseClient.from('watchlist').insert({user_id:user.id,symbol:s,note:watchNote.value.trim()});
+  if(error){alert(error.message);return}
+  watchSymbol.value='';watchNote.value='';loadWatchlist();
+}
+async function loadWatchlist(){
+  const {data,error}=await supabaseClient.from('watchlist').select('*').order('created_at',{ascending:false});
+  if(error){watchlist.textContent=error.message;return}
+  const rows=[];
+  for(const x of data){
+    let q=null; try{q=await getQuoteFor(x.symbol)}catch{}
+    rows.push(`<tr><td><b>${x.symbol}</b></td><td>${x.note||''}</td><td>${q?'$'+Number(q.price).toFixed(2):'—'}</td><td>${q?.datetime||''}</td><td><button onclick="deleteWatch('${x.id}')">Remove</button></td></tr>`);
+  }
+  watchlist.innerHTML=`<table><thead><tr><th>Symbol</th><th>Note</th><th>Online Price</th><th>Timestamp</th><th></th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+}
+async function deleteWatch(id){await supabaseClient.from('watchlist').delete().eq('id',id);loadWatchlist()}
+
+async function addPaperPosition(){
+  try{
+    const s=pSymbol.value.trim().toUpperCase(),sh=Number(pShares.value); if(!s||sh<=0)return;
+    const q=await getQuoteFor(s);
+    const user=(await supabaseClient.auth.getUser()).data.user;
+    const {error}=await supabaseClient.from('paper_portfolio').insert({user_id:user.id,symbol:s,shares:sh,buy_price:q.price});
+    if(error) throw error;
+    pSymbol.value='';loadPortfolio();
+  }catch(e){alert(e.message)}
+}
+async function loadPortfolio(){
+  const {data,error}=await supabaseClient.from('paper_portfolio').select('*').order('created_at',{ascending:false});
+  if(error){portfolio.textContent=error.message;return}
+  const rows=[];
+  for(const x of data){
+    let q=null;try{q=await getQuoteFor(x.symbol)}catch{}
+    const cur=q?Number(q.price):Number(x.buy_price);
+    const pnl=(cur-Number(x.buy_price))*Number(x.shares);
+    rows.push(`<tr><td><b>${x.symbol}</b></td><td>${x.shares}</td><td>$${Number(x.buy_price).toFixed(2)}</td><td>$${cur.toFixed(2)}</td><td>${pnl>=0?'+':''}$${pnl.toFixed(2)}</td><td><button onclick="deletePosition('${x.id}')">Remove</button></td></tr>`);
+  }
+  portfolio.innerHTML=`<table><thead><tr><th>Symbol</th><th>Shares</th><th>Buy Price</th><th>Current</th><th>P/L</th><th></th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+}
+async function deletePosition(id){await supabaseClient.from('paper_portfolio').delete().eq('id',id);loadPortfolio()}
+
+initClient();
+</script>
+</body></html>
