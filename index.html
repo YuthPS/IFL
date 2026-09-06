@@ -28,8 +28,22 @@ table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px s
 <div id="auth" class="card hidden">
 <h2>Login</h2>
 <div class="grid"><input id="email" type="email" placeholder="Email"><input id="password" type="password" placeholder="Password"></div>
-<div style="margin-top:10px"><button onclick="signIn()">Sign In</button> <button onclick="signUp()">Create Account</button></div>
+<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+<button onclick="signIn()">Sign In</button>
+<button onclick="signUp()">Create Account</button>
+<button onclick="forgotPassword()" style="background:#eef2ff;color:#315efb">Forgot Password?</button>
+</div>
 <p id="authMsg" class="muted"></p>
+<div id="resetBox" class="hidden" style="margin-top:14px;padding-top:14px;border-top:1px solid #e6eaf0">
+  <h3>Set New Password</h3>
+  <p class="muted">Enter and confirm your new password.</p>
+  <div class="grid">
+    <input id="newPassword" type="password" placeholder="New password">
+    <input id="confirmPassword" type="password" placeholder="Confirm new password">
+  </div>
+  <button onclick="setNewPassword()" style="margin-top:10px">Save New Password</button>
+  <p id="resetMsg" class="muted"></p>
+</div>
 </div>
 
 <div id="app" class="hidden">
@@ -84,19 +98,65 @@ function saveConfig(){
   location.reload();
 }
 async function restoreSession(){
-  const {data}=await supabaseClient.auth.getSession();
-  if(data.session) showApp(); 
+  const {data,error}=await supabaseClient.auth.getSession();
+  if(error){
+    authMsg.textContent='Supabase connection error: '+error.message;
+    return;
+  }
+  if(data.session) showApp();
 }
 async function signIn(){
-  authMsg.textContent='Signing in...';
-  const {error}=await supabaseClient.auth.signInWithPassword({email:email.value.trim(),password:password.value});
-  if(error){authMsg.textContent=error.message;return}
-  showApp();
+  const e=email.value.trim(), p=password.value;
+  if(!e || !p){authMsg.textContent='Enter both email and password.';return}
+  authMsg.textContent='Checking login...';
+  try{
+    const {data,error}=await supabaseClient.auth.signInWithPassword({email:e,password:p});
+    if(error){
+      let msg=error.message || 'Login failed.';
+      if(/invalid login credentials/i.test(msg)){
+        msg='Login failed. The email/password may be incorrect, the account may not exist, or it may use another sign-in method.';
+      } else if(/email not confirmed/i.test(msg)){
+        msg='Your email is not confirmed yet. Open the Supabase confirmation email, then sign in again.';
+      }
+      authMsg.textContent=msg;
+      return;
+    }
+    authMsg.textContent='Login successful.';
+    showApp();
+  }catch(err){
+    authMsg.textContent='Could not reach Supabase: '+err.message;
+  }
 }
 async function signUp(){
+  const e=email.value.trim(), p=password.value;
+  if(!e || !p){authMsg.textContent='Enter an email and choose a password first.';return}
+  if(p.length<6){authMsg.textContent='Use a password with at least 6 characters.';return}
   authMsg.textContent='Creating account...';
-  const {error}=await supabaseClient.auth.signUp({email:email.value.trim(),password:password.value});
-  authMsg.textContent=error?error.message:'Account created. Check email if email confirmation is enabled.';
+  const {data,error}=await supabaseClient.auth.signUp({email:e,password:p});
+  if(error){authMsg.textContent=error.message;return}
+  authMsg.textContent=data.session
+    ? 'Account created and signed in.'
+    : 'Account created. Check your email for a confirmation message, then return here and sign in.';
+  if(data.session) showApp();
+}
+async function forgotPassword(){
+  const e=email.value.trim();
+  if(!e){authMsg.textContent='Enter your email address first, then click Forgot Password.';return}
+  authMsg.textContent='Sending password reset email...';
+  const redirectTo = window.location.href.split('#')[0].split('?')[0];
+  const {error}=await supabaseClient.auth.resetPasswordForEmail(e,{redirectTo});
+  authMsg.textContent=error
+    ? 'Password reset error: '+error.message
+    : 'If this email is registered, Supabase will send a password-reset link. Check your inbox and spam folder.';
+}
+async function setNewPassword(){
+  const p=newPassword.value, c=confirmPassword.value;
+  if(!p || p.length<6){resetMsg.textContent='Enter a new password with at least 6 characters.';return}
+  if(p!==c){resetMsg.textContent='The two passwords do not match.';return}
+  resetMsg.textContent='Updating password...';
+  const {error}=await supabaseClient.auth.updateUser({password:p});
+  if(error){resetMsg.textContent='Could not update password: '+error.message;return}
+  resetMsg.textContent='Password updated successfully. You can now sign in with the new password.';
 }
 async function signOut(){await supabaseClient.auth.signOut();location.reload()}
 async function showApp(){auth.classList.add('hidden');app.classList.remove('hidden');await loadWatchlist();await loadPortfolio()}
@@ -159,6 +219,15 @@ async function loadPortfolio(){
 }
 async function deletePosition(id){await supabaseClient.from('paper_portfolio').delete().eq('id',id);loadPortfolio()}
 
-initClient();
+if(initClient()){
+  supabaseClient.auth.onAuthStateChange((event, session)=>{
+    if(event==='PASSWORD_RECOVERY'){
+      auth.classList.remove('hidden');
+      app.classList.add('hidden');
+      resetBox.classList.remove('hidden');
+      authMsg.textContent='Password recovery link verified. Set your new password below.';
+    }
+  });
+}
 </script>
 </body></html>
